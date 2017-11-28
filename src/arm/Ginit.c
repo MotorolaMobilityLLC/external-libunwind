@@ -72,6 +72,20 @@ get_dyn_info_list_addr (unw_addr_space_t as, unw_word_t *dyn_info_list_addr,
   return 0;
 }
 
+#ifdef ENHANCE_FOR_INVALID_ADDR_READ
+static __attribute__((noinline))
+unw_word_t try_read_val(void *addr) {
+  unw_word_t val = 0xdeadaee0;
+  asm volatile ("ldr     %0, [%1, #0]\n"
+                "b       1f\n"
+                ".long   0x75666475\n"
+                ".long   0x00006477\n"
+                "1:\n"
+                :"+r"(val):"r"(addr):"memory");
+  return val;
+}
+#endif
+
 static int
 access_mem (unw_addr_space_t as, unw_word_t addr, unw_word_t *val, int write,
 	    void *arg)
@@ -102,7 +116,15 @@ access_mem (unw_addr_space_t as, unw_word_t addr, unw_word_t *val, int write,
       if (map_local_is_readable (addr, sizeof(unw_word_t)))
         {
 #endif
+#ifdef ENHANCE_FOR_INVALID_ADDR_READ
+          unw_word_t out = try_read_val((void *)addr);
+          if (out == 0xdeadaee0)
+            return -1;
+          else
+            *val = out;
+#else
           *val = *(unw_word_t *) addr;
+#endif
           Debug (16, "mem[%x] -> %x\n", addr, *val);
 #ifdef UNW_LOCAL_ONLY
         }
@@ -196,7 +218,15 @@ access_mem_unrestricted (unw_addr_space_t as, unw_word_t addr, unw_word_t *val,
   if (write)
     return -1;
 
+#ifdef ENHANCE_FOR_INVALID_ADDR_READ
+  unw_word_t out = try_read_val((void *)addr);
+  if (out == 0xdeadaee0)
+    return -1;
+  else
+    *val = out;
+#else
   *val = *(unw_word_t *) addr;
+#endif
   Debug (16, "mem[%x] -> %x\n", addr, *val);
   return 0;
 }
