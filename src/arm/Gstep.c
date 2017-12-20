@@ -312,6 +312,22 @@ unw_step (unw_cursor_t *cursor)
 
   if (ret >= 0)
     {
+      if (c->dwarf.frame == 0) {
+        /* If this is the first frame, the code may be executing garbage
+         * in the middle of nowhere. In this case, try using the lr as
+         * the pc.
+         */
+        unw_word_t lr;
+        if (dwarf_get(&c->dwarf, c->dwarf.loc[UNW_ARM_R14], &lr) >= 0) {
+          if (lr != c->dwarf.ip) {
+            Dprintf("%s: using lr as pc, ip=%lx, lr=%lx\n",
+                      __FUNCTION__, (unsigned long)c->dwarf.ip, (unsigned long)lr);
+            ret = 1;
+            c->dwarf.ip = lr;
+          }
+        }
+      }
+
       adjust_ip(c);
       if (c->dwarf.ip == old_ip && c->dwarf.cfa == old_cfa)
         {
